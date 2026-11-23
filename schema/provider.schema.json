@@ -100,7 +100,8 @@
               "delta_seconds",
               "rfc3339",
               "duration_string",
-              "none"
+              "none",
+              "epoch_milliseconds"
             ]
           },
           "ratio_header": {

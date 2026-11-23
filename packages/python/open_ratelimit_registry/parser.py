@@ -81,6 +81,12 @@ def _parse_duration_ms(value: str) -> int | None:
 def _parse_reset(raw: str | None, reset_format: str, now_ms: int) -> tuple[int | None, str | None]:
     if not raw or reset_format == "none":
         return None, None
+    if reset_format == "epoch_milliseconds":
+        ms = _parse_int(raw)
+        if ms is None:
+            return None, None
+        iso = datetime.fromtimestamp(ms / 1000, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+        return max(0, ms - now_ms), iso
     if reset_format == "epoch_seconds":
         sec = _parse_int(raw)
         if sec is None:

@@ -1,0 +1,45 @@
+id: linear
+name: Linear GraphQL API
+category: devtools
+source_url: https://linear.app/developers/rate-limiting
+last_verified: "2026-11-23"
+detect_headers:
+  - x-ratelimit-complexity-limit
+  - x-ratelimit-requests-limit
+buckets:
+  - name: requests
+    unit: requests
+    format: triplet
+    limit_header: x-ratelimit-requests-limit
+    remaining_header: x-ratelimit-requests-remaining
+    reset_header: x-ratelimit-requests-reset
+    reset_format: epoch_milliseconds
+  - name: complexity
+    unit: points
+    format: triplet
+    limit_header: x-ratelimit-complexity-limit
+    remaining_header: x-ratelimit-complexity-remaining
+    reset_header: x-ratelimit-complexity-reset
+    reset_format: epoch_milliseconds
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: wait_until_reset
+  default_backoff_ms: 60000
+  notes: "Reset timestamps are in UTC epoch milliseconds; complexity points are enforced alongside request counts."
+examples:
+  - description: "Linear GraphQL request and complexity headers"
+    status: 200
+    headers:
+      x-ratelimit-requests-limit: "1500"
+      x-ratelimit-requests-remaining: "1492"
+      x-ratelimit-requests-reset: "1795447100000"
+      x-ratelimit-complexity-limit: "250000"
+      x-ratelimit-complexity-remaining: "249800"
+      x-ratelimit-complexity-reset: "1795447100000"
+    expected:
+      is_limited: false
+      limit: 1500
+      remaining: 1492
+      retry_after_ms: null

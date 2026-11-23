@@ -1,0 +1,47 @@
+id: resend
+name: Resend Email API
+category: messaging
+source_url: https://resend.com/docs/api-reference/rate-limit
+last_verified: "2026-11-23"
+detect_headers:
+  - ratelimit-limit
+  - ratelimit-remaining
+buckets:
+  - name: requests
+    unit: requests
+    format: triplet
+    limit_header: ratelimit-limit
+    remaining_header: ratelimit-remaining
+    reset_header: ratelimit-reset
+    reset_format: delta_seconds
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: honor_retry_after
+  default_backoff_ms: 1000
+  notes: "Follows IETF draft triplet headers with delta-seconds reset; default team limit is 10 req/s."
+examples:
+  - description: "Resend API response with remaining quota"
+    status: 200
+    headers:
+      ratelimit-limit: "10"
+      ratelimit-remaining: "8"
+      ratelimit-reset: "1"
+    expected:
+      is_limited: false
+      limit: 10
+      remaining: 8
+      retry_after_ms: null
+  - description: "Resend 429 rate limited response"
+    status: 429
+    headers:
+      ratelimit-limit: "10"
+      ratelimit-remaining: "0"
+      ratelimit-reset: "1"
+      retry-after: "1"
+    expected:
+      is_limited: true
+      limit: 10
+      remaining: 0
+      retry_after_ms: 1000

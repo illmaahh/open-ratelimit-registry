@@ -1,0 +1,33 @@
+id: gitlab
+name: GitLab REST API
+category: devtools
+source_url: https://http.dev/ratelimit-limit
+last_verified: "2026-11-23"
+detect_headers: []
+buckets:
+  - name: requests
+    unit: requests
+    format: triplet
+    limit_header: ratelimit-limit
+    remaining_header: ratelimit-remaining
+    reset_header: ratelimit-reset
+    reset_format: epoch_seconds
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: honor_retry_after
+  default_backoff_ms: 60000
+  notes: "GitLab emits RateLimit-Limit, RateLimit-Remaining, and RateLimit-Reset headers."
+examples:
+  - description: "GitLab REST API rate limit headers"
+    status: 200
+    headers:
+      ratelimit-limit: "2000"
+      ratelimit-remaining: "1995"
+      ratelimit-reset: "1795443660"
+    expected:
+      is_limited: false
+      limit: 2000
+      remaining: 1995
+      retry_after_ms: null

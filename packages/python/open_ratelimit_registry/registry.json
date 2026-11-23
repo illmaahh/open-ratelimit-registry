@@ -97,6 +97,109 @@
         }
       ]
     },
+    "cloudflare": {
+      "id": "cloudflare",
+      "name": "Cloudflare API & Edge",
+      "category": "cloud",
+      "source_url": "https://www.glorycloud.com/blog/429-error/",
+      "last_verified": "2026-11-23",
+      "detect_headers": [
+        "cf-ray"
+      ],
+      "buckets": [],
+      "retry": {
+        "status_codes": [
+          429
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "honor_retry_after",
+        "default_backoff_ms": 10000,
+        "notes": "Cloudflare signals rate limiting via HTTP 429 (Error 1015) and Retry-After without emitting remaining-quota headers."
+      },
+      "examples": [
+        {
+          "description": "Cloudflare 429 with Retry-After",
+          "status": 429,
+          "headers": {
+            "cf-ray": "8f1234567890abcd-IST",
+            "retry-after": "30"
+          },
+          "expected": {
+            "is_limited": true,
+            "limit": null,
+            "remaining": null,
+            "retry_after_ms": 30000
+          }
+        }
+      ]
+    },
+    "discord": {
+      "id": "discord",
+      "name": "Discord REST API",
+      "category": "messaging",
+      "source_url": "https://docs.discord.com/developers/topics/rate-limits",
+      "last_verified": "2026-11-23",
+      "detect_headers": [
+        "x-ratelimit-bucket",
+        "x-ratelimit-reset-after"
+      ],
+      "buckets": [
+        {
+          "name": "route",
+          "unit": "requests",
+          "format": "triplet",
+          "limit_header": "x-ratelimit-limit",
+          "remaining_header": "x-ratelimit-remaining",
+          "reset_header": "x-ratelimit-reset-after",
+          "reset_format": "delta_seconds"
+        }
+      ],
+      "retry": {
+        "status_codes": [
+          429
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "honor_retry_after",
+        "default_backoff_ms": 5000,
+        "notes": "Per-route buckets use X-RateLimit-Bucket; 401/403/429 count toward Cloudflare invalid-request bans."
+      },
+      "examples": [
+        {
+          "description": "Discord per-route rate limit headers",
+          "status": 200,
+          "headers": {
+            "x-ratelimit-bucket": "9852e1a53c06ffc5a89d65fef85ca4ce",
+            "x-ratelimit-limit": "5",
+            "x-ratelimit-remaining": "4",
+            "x-ratelimit-reset-after": "15"
+          },
+          "expected": {
+            "is_limited": false,
+            "limit": 5,
+            "remaining": 4,
+            "retry_after_ms": null
+          }
+        },
+        {
+          "description": "Discord 429 rate limited response",
+          "status": 429,
+          "headers": {
+            "x-ratelimit-bucket": "1d3c67957bcdccc6709861c232df8529",
+            "x-ratelimit-limit": "5",
+            "x-ratelimit-remaining": "0",
+            "retry-after": "3"
+          },
+          "expected": {
+            "is_limited": true,
+            "limit": 5,
+            "remaining": 0,
+            "retry_after_ms": 3000
+          }
+        }
+      ]
+    },
     "github": {
       "id": "github",
       "name": "GitHub REST & GraphQL API",
@@ -160,6 +263,52 @@
             "limit": 5000,
             "remaining": 0,
             "retry_after_ms": 45000
+          }
+        }
+      ]
+    },
+    "gitlab": {
+      "id": "gitlab",
+      "name": "GitLab REST API",
+      "category": "devtools",
+      "source_url": "https://http.dev/ratelimit-limit",
+      "last_verified": "2026-11-23",
+      "detect_headers": [],
+      "buckets": [
+        {
+          "name": "requests",
+          "unit": "requests",
+          "format": "triplet",
+          "limit_header": "ratelimit-limit",
+          "remaining_header": "ratelimit-remaining",
+          "reset_header": "ratelimit-reset",
+          "reset_format": "epoch_seconds"
+        }
+      ],
+      "retry": {
+        "status_codes": [
+          429
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "honor_retry_after",
+        "default_backoff_ms": 60000,
+        "notes": "GitLab emits RateLimit-Limit, RateLimit-Remaining, and RateLimit-Reset headers."
+      },
+      "examples": [
+        {
+          "description": "GitLab REST API rate limit headers",
+          "status": 200,
+          "headers": {
+            "ratelimit-limit": "2000",
+            "ratelimit-remaining": "1995",
+            "ratelimit-reset": "1795443660"
+          },
+          "expected": {
+            "is_limited": false,
+            "limit": 2000,
+            "remaining": 1995,
+            "retry_after_ms": null
           }
         }
       ]
@@ -266,6 +415,67 @@
         }
       ]
     },
+    "linear": {
+      "id": "linear",
+      "name": "Linear GraphQL API",
+      "category": "devtools",
+      "source_url": "https://linear.app/developers/rate-limiting",
+      "last_verified": "2026-11-23",
+      "detect_headers": [
+        "x-ratelimit-complexity-limit",
+        "x-ratelimit-requests-limit"
+      ],
+      "buckets": [
+        {
+          "name": "requests",
+          "unit": "requests",
+          "format": "triplet",
+          "limit_header": "x-ratelimit-requests-limit",
+          "remaining_header": "x-ratelimit-requests-remaining",
+          "reset_header": "x-ratelimit-requests-reset",
+          "reset_format": "epoch_milliseconds"
+        },
+        {
+          "name": "complexity",
+          "unit": "points",
+          "format": "triplet",
+          "limit_header": "x-ratelimit-complexity-limit",
+          "remaining_header": "x-ratelimit-complexity-remaining",
+          "reset_header": "x-ratelimit-complexity-reset",
+          "reset_format": "epoch_milliseconds"
+        }
+      ],
+      "retry": {
+        "status_codes": [
+          429
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "wait_until_reset",
+        "default_backoff_ms": 60000,
+        "notes": "Reset timestamps are in UTC epoch milliseconds; complexity points are enforced alongside request counts."
+      },
+      "examples": [
+        {
+          "description": "Linear GraphQL request and complexity headers",
+          "status": 200,
+          "headers": {
+            "x-ratelimit-requests-limit": "1500",
+            "x-ratelimit-requests-remaining": "1492",
+            "x-ratelimit-requests-reset": "1795447100000",
+            "x-ratelimit-complexity-limit": "250000",
+            "x-ratelimit-complexity-remaining": "249800",
+            "x-ratelimit-complexity-reset": "1795447100000"
+          },
+          "expected": {
+            "is_limited": false,
+            "limit": 1500,
+            "remaining": 1492,
+            "retry_after_ms": null
+          }
+        }
+      ]
+    },
     "openai": {
       "id": "openai",
       "name": "OpenAI API",
@@ -323,6 +533,71 @@
             "limit": 500,
             "remaining": 499,
             "retry_after_ms": null
+          }
+        }
+      ]
+    },
+    "resend": {
+      "id": "resend",
+      "name": "Resend Email API",
+      "category": "messaging",
+      "source_url": "https://resend.com/docs/api-reference/rate-limit",
+      "last_verified": "2026-11-23",
+      "detect_headers": [
+        "ratelimit-limit",
+        "ratelimit-remaining"
+      ],
+      "buckets": [
+        {
+          "name": "requests",
+          "unit": "requests",
+          "format": "triplet",
+          "limit_header": "ratelimit-limit",
+          "remaining_header": "ratelimit-remaining",
+          "reset_header": "ratelimit-reset",
+          "reset_format": "delta_seconds"
+        }
+      ],
+      "retry": {
+        "status_codes": [
+          429
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "honor_retry_after",
+        "default_backoff_ms": 1000,
+        "notes": "Follows IETF draft triplet headers with delta-seconds reset; default team limit is 10 req/s."
+      },
+      "examples": [
+        {
+          "description": "Resend API response with remaining quota",
+          "status": 200,
+          "headers": {
+            "ratelimit-limit": "10",
+            "ratelimit-remaining": "8",
+            "ratelimit-reset": "1"
+          },
+          "expected": {
+            "is_limited": false,
+            "limit": 10,
+            "remaining": 8,
+            "retry_after_ms": null
+          }
+        },
+        {
+          "description": "Resend 429 rate limited response",
+          "status": 429,
+          "headers": {
+            "ratelimit-limit": "10",
+            "ratelimit-remaining": "0",
+            "ratelimit-reset": "1",
+            "retry-after": "1"
+          },
+          "expected": {
+            "is_limited": true,
+            "limit": 10,
+            "remaining": 0,
+            "retry_after_ms": 1000
           }
         }
       ]

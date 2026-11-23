@@ -1,0 +1,26 @@
+id: cloudflare
+name: Cloudflare API & Edge
+category: cloud
+source_url: https://www.glorycloud.com/blog/429-error/
+last_verified: "2026-11-23"
+detect_headers:
+  - cf-ray
+buckets: []
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: honor_retry_after
+  default_backoff_ms: 10000
+  notes: "Cloudflare signals rate limiting via HTTP 429 (Error 1015) and Retry-After without emitting remaining-quota headers."
+examples:
+  - description: "Cloudflare 429 with Retry-After"
+    status: 429
+    headers:
+      cf-ray: "8f1234567890abcd-IST"
+      retry-after: "30"
+    expected:
+      is_limited: true
+      limit: null
+      remaining: null
+      retry_after_ms: 30000

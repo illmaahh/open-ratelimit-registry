@@ -40,6 +40,14 @@ function parseDurationMs(val) {
 
 function parseReset(raw, format, nowMs) {
   if (!raw || format === "none") return { resetAfterMs: null, resetAt: null };
+  if (format === "epoch_milliseconds") {
+    const ms = parseIntSafe(raw);
+    if (ms === null) return { resetAfterMs: null, resetAt: null };
+    return {
+      resetAfterMs: Math.max(0, ms - nowMs),
+      resetAt: new Date(ms).toISOString(),
+    };
+  }
   if (format === "epoch_seconds") {
     const sec = parseIntSafe(raw);
     if (sec === null) return { resetAfterMs: null, resetAt: null };
