@@ -1,14 +1,35 @@
 {
   "name": "open-ratelimit-registry",
-  "version": "0.1.0",
-  "description": "Machine-readable registry and zero-dependency parser for HTTP API rate-limit headers",
+  "version": "2.0.0",
+  "description": "Machine-readable registry, proactive tracker, CLI, and zero-dependency parser for HTTP API rate-limit headers",
   "type": "module",
   "main": "./src/index.mjs",
+  "types": "./src/index.d.ts",
+  "bin": {
+    "open-ratelimit": "./bin/cli.mjs"
+  },
   "exports": {
-    ".": "./src/index.mjs"
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.mjs"
+    }
   },
   "scripts": {
     "test": "node --test test/parser.test.mjs"
+  },
+  "keywords": [
+    "ratelimit",
+    "rate-limit",
+    "http-headers",
+    "api",
+    "retry",
+    "429",
+    "ietf",
+    "cli"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Burakceliks/open-ratelimit-registry.git"
   },
   "license": "MIT"
 }

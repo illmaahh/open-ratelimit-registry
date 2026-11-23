@@ -1,0 +1,28 @@
+id: figma
+name: Figma REST API
+category: devtools
+source_url: https://developers.figma.com/docs/rest-api/rate-limits/
+last_verified: "2026-11-23"
+detect_headers:
+  - x-figma-rate-limit-type
+  - x-figma-plan-tier
+buckets: []
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: honor_retry_after
+  default_backoff_ms: 60000
+  notes: "Figma returns Retry-After, X-Figma-Rate-Limit-Type, and X-Figma-Plan-Tier on 429; avoid blind retries to prevent long cooldowns."
+examples:
+  - description: "Figma 429 rate limited response"
+    status: 429
+    headers:
+      x-figma-rate-limit-type: "low"
+      x-figma-plan-tier: "pro"
+      retry-after: "60"
+    expected:
+      is_limited: true
+      limit: null
+      remaining: null
+      retry_after_ms: 60000

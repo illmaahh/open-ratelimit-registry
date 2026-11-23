@@ -1,6 +1,38 @@
 {
-  "version": "0.1.0",
+  "version": "2.0.0",
   "providers": {
+    "airtable": {
+      "id": "airtable",
+      "name": "Airtable Web API",
+      "category": "crm",
+      "source_url": "https://airtable.com/developers/web/api/rate-limits",
+      "last_verified": "2026-11-23",
+      "detect_headers": [],
+      "buckets": [],
+      "retry": {
+        "status_codes": [
+          429
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "exponential_backoff_jitter",
+        "default_backoff_ms": 30000,
+        "notes": "Airtable enforces 5 req/s per base and imposes a 30-second cooldown after HTTP 429."
+      },
+      "examples": [
+        {
+          "description": "Airtable bare 429 triggers 30s default cooldown",
+          "status": 429,
+          "headers": {},
+          "expected": {
+            "is_limited": true,
+            "limit": null,
+            "remaining": null,
+            "retry_after_ms": 30000
+          }
+        }
+      ]
+    },
     "anthropic": {
       "id": "anthropic",
       "name": "Anthropic Claude API",
@@ -101,7 +133,7 @@
       "id": "cloudflare",
       "name": "Cloudflare API & Edge",
       "category": "cloud",
-      "source_url": "https://www.glorycloud.com/blog/429-error/",
+      "source_url": "https://developers.cloudflare.com/fundamentals/api/reference/limits/",
       "last_verified": "2026-11-23",
       "detect_headers": [
         "cf-ray"
@@ -200,6 +232,80 @@
         }
       ]
     },
+    "figma": {
+      "id": "figma",
+      "name": "Figma REST API",
+      "category": "devtools",
+      "source_url": "https://developers.figma.com/docs/rest-api/rate-limits/",
+      "last_verified": "2026-11-23",
+      "detect_headers": [
+        "x-figma-rate-limit-type",
+        "x-figma-plan-tier"
+      ],
+      "buckets": [],
+      "retry": {
+        "status_codes": [
+          429
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "honor_retry_after",
+        "default_backoff_ms": 60000,
+        "notes": "Figma returns Retry-After, X-Figma-Rate-Limit-Type, and X-Figma-Plan-Tier on 429; avoid blind retries to prevent long cooldowns."
+      },
+      "examples": [
+        {
+          "description": "Figma 429 rate limited response",
+          "status": 429,
+          "headers": {
+            "x-figma-rate-limit-type": "low",
+            "x-figma-plan-tier": "pro",
+            "retry-after": "60"
+          },
+          "expected": {
+            "is_limited": true,
+            "limit": null,
+            "remaining": null,
+            "retry_after_ms": 60000
+          }
+        }
+      ]
+    },
+    "gemini": {
+      "id": "gemini",
+      "name": "Google Gemini API",
+      "category": "ai",
+      "source_url": "https://ai.google.dev/gemini-api/docs/rate-limits",
+      "last_verified": "2026-11-23",
+      "detect_headers": [],
+      "buckets": [],
+      "retry": {
+        "status_codes": [
+          429,
+          503
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "exponential_backoff_jitter",
+        "default_backoff_ms": 4000,
+        "notes": "Returns HTTP 429 (RESOURCE_EXHAUSTED) or transient 503; honor Retry-After when present or apply jittered exponential backoff."
+      },
+      "examples": [
+        {
+          "description": "Gemini 429 with Retry-After",
+          "status": 429,
+          "headers": {
+            "retry-after": "8"
+          },
+          "expected": {
+            "is_limited": true,
+            "limit": null,
+            "remaining": null,
+            "retry_after_ms": 8000
+          }
+        }
+      ]
+    },
     "github": {
       "id": "github",
       "name": "GitHub REST & GraphQL API",
@@ -271,7 +377,7 @@
       "id": "gitlab",
       "name": "GitLab REST API",
       "category": "devtools",
-      "source_url": "https://http.dev/ratelimit-limit",
+      "source_url": "https://docs.gitlab.com/user/gitlab_com/rate_limits/",
       "last_verified": "2026-11-23",
       "detect_headers": [],
       "buckets": [
@@ -624,10 +730,7 @@
       "category": "messaging",
       "source_url": "https://resend.com/docs/api-reference/rate-limit",
       "last_verified": "2026-11-23",
-      "detect_headers": [
-        "ratelimit-limit",
-        "ratelimit-remaining"
-      ],
+      "detect_headers": [],
       "buckets": [
         {
           "name": "requests",
@@ -679,6 +782,43 @@
             "limit": 10,
             "remaining": 0,
             "retry_after_ms": 1000
+          }
+        }
+      ]
+    },
+    "sentry": {
+      "id": "sentry",
+      "name": "Sentry Ingest & REST API",
+      "category": "devtools",
+      "source_url": "https://docs.sentry.io/concepts/otlp/forwarding/pipelines/sentry-exporter/",
+      "last_verified": "2026-11-23",
+      "detect_headers": [
+        "x-sentry-rate-limits"
+      ],
+      "buckets": [],
+      "retry": {
+        "status_codes": [
+          429
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "honor_retry_after",
+        "default_backoff_ms": 60000,
+        "notes": "Sentry returns X-Sentry-Rate-Limits and/or Retry-After; falls back to 60s backoff on bare 429."
+      },
+      "examples": [
+        {
+          "description": "Sentry 429 with Retry-After",
+          "status": 429,
+          "headers": {
+            "x-sentry-rate-limits": "60:error:organization",
+            "retry-after": "60"
+          },
+          "expected": {
+            "is_limited": true,
+            "limit": null,
+            "remaining": null,
+            "retry_after_ms": 60000
           }
         }
       ]
@@ -846,6 +986,40 @@
         }
       ]
     },
+    "supabase": {
+      "id": "supabase",
+      "name": "Supabase Management API",
+      "category": "cloud",
+      "source_url": "https://supabase.com/docs/reference/api/introduction",
+      "last_verified": "2026-11-23",
+      "detect_headers": [],
+      "buckets": [],
+      "retry": {
+        "status_codes": [
+          429
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "honor_retry_after",
+        "default_backoff_ms": 5000,
+        "notes": "Returns HTTP 429 with Retry-After when management API or edge thresholds are exceeded."
+      },
+      "examples": [
+        {
+          "description": "Supabase 429 with Retry-After",
+          "status": 429,
+          "headers": {
+            "retry-after": "5"
+          },
+          "expected": {
+            "is_limited": true,
+            "limit": null,
+            "remaining": null,
+            "retry_after_ms": 5000
+          }
+        }
+      ]
+    },
     "twilio": {
       "id": "twilio",
       "name": "Twilio REST API",
@@ -879,6 +1053,55 @@
             "limit": null,
             "remaining": null,
             "retry_after_ms": 5000
+          }
+        }
+      ]
+    },
+    "vercel": {
+      "id": "vercel",
+      "name": "Vercel REST API",
+      "category": "cloud",
+      "source_url": "https://vercel.com/docs/rest-api",
+      "last_verified": "2026-11-23",
+      "detect_headers": [
+        "x-vercel-id"
+      ],
+      "buckets": [
+        {
+          "name": "requests",
+          "unit": "requests",
+          "format": "triplet",
+          "limit_header": "x-ratelimit-limit",
+          "remaining_header": "x-ratelimit-remaining",
+          "reset_header": "x-ratelimit-reset",
+          "reset_format": "epoch_seconds"
+        }
+      ],
+      "retry": {
+        "status_codes": [
+          429
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "honor_retry_after",
+        "default_backoff_ms": 10000,
+        "notes": "Vercel emits X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset (Unix epoch seconds), and Retry-After on 429."
+      },
+      "examples": [
+        {
+          "description": "Vercel API response with remaining quota",
+          "status": 200,
+          "headers": {
+            "x-vercel-id": "iad1::abc123",
+            "x-ratelimit-limit": "100",
+            "x-ratelimit-remaining": "88",
+            "x-ratelimit-reset": "1795443660"
+          },
+          "expected": {
+            "is_limited": false,
+            "limit": 100,
+            "remaining": 88,
+            "retry_after_ms": null
           }
         }
       ]
@@ -927,6 +1150,53 @@
             "is_limited": false,
             "limit": 100,
             "remaining": 87,
+            "retry_after_ms": null
+          }
+        }
+      ]
+    },
+    "zendesk": {
+      "id": "zendesk",
+      "name": "Zendesk Support API",
+      "category": "crm",
+      "source_url": "https://developer.zendesk.com/api-reference/introduction/rate-limits/",
+      "last_verified": "2026-11-23",
+      "detect_headers": [
+        "x-zendesk-api-version"
+      ],
+      "buckets": [
+        {
+          "name": "requests",
+          "unit": "requests",
+          "format": "triplet",
+          "limit_header": "x-rate-limit",
+          "remaining_header": "x-rate-limit-remaining",
+          "reset_format": "none"
+        }
+      ],
+      "retry": {
+        "status_codes": [
+          429
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "honor_retry_after",
+        "default_backoff_ms": 30000,
+        "notes": "Zendesk uses X-Rate-Limit and X-Rate-Limit-Remaining on responses, plus Retry-After on 429."
+      },
+      "examples": [
+        {
+          "description": "Zendesk API response with remaining per-minute quota",
+          "status": 200,
+          "headers": {
+            "x-zendesk-api-version": "v2",
+            "x-rate-limit": "700",
+            "x-rate-limit-remaining": "694"
+          },
+          "expected": {
+            "is_limited": false,
+            "limit": 700,
+            "remaining": 694,
             "retry_after_ms": null
           }
         }

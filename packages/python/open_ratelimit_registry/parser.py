@@ -1,17 +1,21 @@
 from __future__ import annotations
 
+import email.utils
 import json
 import pathlib
+import random
 import re
-from dataclasses import dataclass, field
+import time
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 
 _REGISTRY_PATH = pathlib.Path(__file__).resolve().parent / "registry.json"
 _REGISTRY = json.loads(_REGISTRY_PATH.read_text(encoding="utf-8"))["providers"]
 
 _DURATION_RE = re.compile(r"(\d+(?:\.\d+)?)(ms|s|m|h|d)")
 _IETF_PARAM_RE = re.compile(r"\b([a-z]+)=(\d+)")
+_HTTP_STATUS_RE = re.compile(r"^HTTP/\d(?:\.\d)?\s+(\d{3})\b", re.IGNORECASE)
 
 
 @dataclass
@@ -36,6 +40,9 @@ class RateLimitResult:
     retry_after_ms: int | None = None
     strategy: str = "exponential_backoff_jitter"
     buckets: dict[str, RateLimitBucketState] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
 
 
 def list_providers() -> list[str]:
@@ -76,6 +83,23 @@ def _parse_duration_ms(value: str) -> int | None:
         elif unit == "d":
             total_ms += amount * 86_400_000
     return int(round(total_ms)) if matched else None
+
+
+def _parse_retry_after_ms(raw: str | None, now_ms: int) -> int | None:
+    if not raw:
+        return None
+    try:
+        return max(0, int(round(float(raw) * 1000)))
+    except ValueError:
+        pass
+    try:
+        dt = email.utils.parsedate_to_datetime(raw)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        target_ms = int(dt.timestamp() * 1000)
+        return max(0, target_ms - now_ms)
+    except (TypeError, ValueError):
+        return None
 
 
 def _parse_reset(raw: str | None, reset_format: str, now_ms: int) -> tuple[int | None, str | None]:
@@ -126,6 +150,42 @@ def detect_provider(headers: Mapping[str, Any]) -> str | None:
     return None
 
 
+def parse_http_headers_text(raw_text: str) -> tuple[int, dict[str, str]]:
+    """Parse raw HTTP response headers (e.g. from `curl -si`) into (status, headers)."""
+    status = 200
+    headers: dict[str, str] = {}
+    for line in raw_text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            if headers:
+                break
+            continue
+        m = _HTTP_STATUS_RE.match(stripped)
+        if m:
+            status = int(m.group(1))
+            continue
+        if ":" in stripped:
+            k, v = stripped.split(":", 1)
+            headers[k.strip().lower()] = v.strip()
+    return status, headers
+
+
+def compute_backoff_ms(
+    attempt: int,
+    base_ms: int = 1000,
+    max_ms: int = 60_000,
+    jitter: str = "full",
+    rng: Callable[[], float] = random.random,
+) -> int:
+    """Compute exponential backoff delay in milliseconds with optional full/equal jitter."""
+    cap = min(max_ms, base_ms * (2 ** max(0, attempt)))
+    if jitter == "none":
+        return int(cap)
+    if jitter == "equal":
+        return int(round((cap / 2.0) + (rng() * (cap / 2.0))))
+    return int(round(rng() * cap))
+
+
 def parse_rate_limit(
     provider: str | None,
     headers: Mapping[str, Any],
@@ -138,12 +198,12 @@ def parse_rate_limit(
     spec = _REGISTRY.get(pid) if pid else None
 
     if spec is None:
-        retry_sec = _parse_int(norm.get("retry-after"))
+        retry_ms = _parse_retry_after_ms(norm.get("retry-after"), now)
         is_limited = status == 429
         return RateLimitResult(
             provider=pid,
             is_limited=is_limited,
-            retry_after_ms=retry_sec * 1000 if (is_limited and retry_sec is not None) else (5000 if is_limited else None),
+            retry_after_ms=retry_ms if (is_limited and retry_ms is not None) else (5000 if is_limited else None),
         )
 
     parsed_buckets: dict[str, RateLimitBucketState] = {}
@@ -199,13 +259,7 @@ def parse_rate_limit(
 
     retry_cfg = spec["retry"]
     retry_header = retry_cfg.get("retry_after_header", "retry-after").lower()
-    retry_after_raw = norm.get(retry_header)
-    retry_after_ms: int | None = None
-    if retry_after_raw is not None:
-        try:
-            retry_after_ms = max(0, int(round(float(retry_after_raw) * 1000)))
-        except ValueError:
-            retry_after_ms = None
+    retry_after_ms = _parse_retry_after_ms(norm.get(retry_header), now)
 
     is_limited = status in retry_cfg["status_codes"]
     if pid == "github" and status == 403:
@@ -228,3 +282,73 @@ def parse_rate_limit(
         strategy=retry_cfg["strategy"],
         buckets=parsed_buckets,
     )
+
+
+class RateLimitTracker:
+    """In-memory proactive rate-limit tracker across providers and keys."""
+
+    def __init__(self, clock_ms: Callable[[], int] | None = None):
+        self._clock_ms = clock_ms or (lambda: int(datetime.now(tz=timezone.utc).timestamp() * 1000))
+        self._state: dict[str, tuple[int, RateLimitResult]] = {}
+
+    def update(
+        self,
+        provider: str | None,
+        headers: Mapping[str, Any],
+        status: int = 200,
+        key: str | None = None,
+    ) -> RateLimitResult:
+        now = self._clock_ms()
+        result = parse_rate_limit(provider, headers, status=status, now_ms=now)
+        slot = key or result.provider or "default"
+        self._state[slot] = (now, result)
+        return result
+
+    def get_delay_ms(self, key: str, min_remaining: int = 1) -> int:
+        entry = self._state.get(key)
+        if not entry:
+            return 0
+        recorded_ms, result = entry
+        elapsed = max(0, self._clock_ms() - recorded_ms)
+        if result.is_limited and result.retry_after_ms is not None:
+            return max(0, result.retry_after_ms - elapsed)
+        if result.remaining is not None and result.remaining < min_remaining:
+            if result.reset_after_ms is not None:
+                return max(0, result.reset_after_ms - elapsed)
+        return 0
+
+    def clear(self, key: str | None = None) -> None:
+        if key is None:
+            self._state.clear()
+        else:
+            self._state.pop(key, None)
+
+    def snapshot(self) -> dict[str, dict[str, Any]]:
+        return {k: v[1].to_dict() for k, v in self._state.items()}
+
+
+def request_with_rate_limit(
+    request_fn: Callable[[], Any],
+    provider: str | None = None,
+    max_retries: int = 3,
+    max_wait_ms: int = 60_000,
+    sleep_fn: Callable[[float], None] = time.sleep,
+    rng: Callable[[], float] = random.random,
+) -> tuple[Any, RateLimitResult]:
+    """Execute request_fn() and automatically retry on rate-limited responses."""
+    last_response = None
+    last_result = RateLimitResult(provider=provider, is_limited=False)
+    for attempt in range(max_retries + 1):
+        response = request_fn()
+        status = getattr(response, "status_code", getattr(response, "status", 200))
+        headers = getattr(response, "headers", {})
+        result = parse_rate_limit(provider, headers, status=status)
+        last_response, last_result = response, result
+        if not result.is_limited or attempt == max_retries:
+            return response, result
+        if result.strategy == "exponential_backoff_jitter" and result.retry_after_ms is not None:
+            wait_ms = compute_backoff_ms(attempt, base_ms=result.retry_after_ms, max_ms=max_wait_ms, rng=rng)
+        else:
+            wait_ms = min(result.retry_after_ms or 1000, max_wait_ms)
+        sleep_fn(wait_ms / 1000.0)
+    return last_response, last_result

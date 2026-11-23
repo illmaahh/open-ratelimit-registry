@@ -1,0 +1,24 @@
+id: supabase
+name: Supabase Management API
+category: cloud
+source_url: https://supabase.com/docs/reference/api/introduction
+last_verified: "2026-11-23"
+detect_headers: []
+buckets: []
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: honor_retry_after
+  default_backoff_ms: 5000
+  notes: "Returns HTTP 429 with Retry-After when management API or edge thresholds are exceeded."
+examples:
+  - description: "Supabase 429 with Retry-After"
+    status: 429
+    headers:
+      retry-after: "5"
+    expected:
+      is_limited: true
+      limit: null
+      remaining: null
+      retry_after_ms: 5000

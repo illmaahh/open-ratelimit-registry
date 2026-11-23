@@ -1,0 +1,23 @@
+id: airtable
+name: Airtable Web API
+category: crm
+source_url: https://airtable.com/developers/web/api/rate-limits
+last_verified: "2026-11-23"
+detect_headers: []
+buckets: []
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: exponential_backoff_jitter
+  default_backoff_ms: 30000
+  notes: "Airtable enforces 5 req/s per base and imposes a 30-second cooldown after HTTP 429."
+examples:
+  - description: "Airtable bare 429 triggers 30s default cooldown"
+    status: 429
+    headers: {}
+    expected:
+      is_limited: true
+      limit: null
+      remaining: null
+      retry_after_ms: 30000

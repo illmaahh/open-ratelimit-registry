@@ -1,28 +1,41 @@
 import json
 import pathlib
 import re
-import sys
 import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PROVIDERS_DIR = ROOT / "providers"
 SCHEMA_PATH = ROOT / "schema" / "provider.schema.json"
 
+try:
+    import jsonschema
+except ImportError:
+    jsonschema = None
+
 
 def validate_all() -> list[dict]:
     schema = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-    required_top = schema["required"]
+    validator = jsonschema.Draft202012Validator(schema) if jsonschema else None
+
     specs = []
-    seen_ids = set()
+    seen_ids: set[str] = set()
+    seen_detect_headers: dict[str, str] = {}
 
     for path in sorted(PROVIDERS_DIR.glob("*.yaml")):
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
             raise ValueError(f"{path.name}: must be a YAML mapping")
 
-        for field in required_top:
-            if field not in data:
-                raise ValueError(f"{path.name}: missing required field '{field}'")
+        if validator is not None:
+            errors = sorted(validator.iter_errors(data), key=lambda e: list(e.path))
+            if errors:
+                err = errors[0]
+                loc = ".".join(str(x) for x in err.path) or "<root>"
+                raise ValueError(f"{path.name} [{loc}]: {err.message}")
+        else:
+            for field in schema["required"]:
+                if field not in data:
+                    raise ValueError(f"{path.name}: missing required field '{field}'")
 
         pid = data["id"]
         if pid != path.stem:
@@ -36,8 +49,13 @@ def validate_all() -> list[dict]:
         if not re.match(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$", str(data["last_verified"])):
             raise ValueError(f"{path.name}: last_verified must be YYYY-MM-DD")
 
-        if not data["examples"]:
-            raise ValueError(f"{path.name}: at least 1 example is required")
+        for h in data.get("detect_headers", []):
+            key = h.lower()
+            if key in seen_detect_headers:
+                raise ValueError(
+                    f"{path.name}: detect_header '{key}' collides with '{seen_detect_headers[key]}'"
+                )
+            seen_detect_headers[key] = pid
 
         specs.append(data)
 
@@ -46,4 +64,5 @@ def validate_all() -> list[dict]:
 
 if __name__ == "__main__":
     specs = validate_all()
-    print(f"Validated {len(specs)} provider specs successfully.")
+    mode = "JSON Schema (Draft 2020-12)" if jsonschema else "basic"
+    print(f"Validated {len(specs)} provider specs ({mode}) with zero header collisions.")

@@ -3,9 +3,7 @@ name: Resend Email API
 category: messaging
 source_url: https://resend.com/docs/api-reference/rate-limit
 last_verified: "2026-11-23"
-detect_headers:
-  - ratelimit-limit
-  - ratelimit-remaining
+detect_headers: []
 buckets:
   - name: requests
     unit: requests

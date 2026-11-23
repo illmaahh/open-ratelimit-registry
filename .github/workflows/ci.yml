@@ -17,14 +17,20 @@ jobs:
         with:
           node-version: "20"
       - name: Install PyYAML
-        run: pip install pyyaml
+        run: pip install pyyaml jsonschema
       - name: Validate provider YAMLs
         run: python3 scripts/validate_providers.py
-      - name: Check registry.json is up to date
+      - name: Check registry.json and README.md are up to date
         run: |
           python3 scripts/build_registry.py
-          git diff --exit-code packages/
-      - name: Run Python tests
+          git diff --exit-code packages/ README.md
+      - name: Run Python unit tests
         run: python3 -m unittest discover -s packages/python/tests -v
-      - name: Run JS tests
+      - name: Run JS unit tests
         run: node --test packages/js/test/parser.test.mjs
+      - name: Verify cross-language Python/JS parity
+        run: python3 scripts/verify_parity.py
+      - name: Smoke-test Python and JS CLIs
+        run: |
+          printf "HTTP/2 429\r\nretry-after: 5\r\ncf-ray: test-IST\r\n\r\n" | PYTHONPATH=packages/python python3 -m open_ratelimit_registry inspect --json
+          printf "HTTP/2 429\r\nretry-after: 5\r\ncf-ray: test-IST\r\n\r\n" | node packages/js/bin/cli.mjs inspect --json

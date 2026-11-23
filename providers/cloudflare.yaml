@@ -1,7 +1,7 @@
 id: cloudflare
 name: Cloudflare API & Edge
 category: cloud
-source_url: https://www.glorycloud.com/blog/429-error/
+source_url: https://developers.cloudflare.com/fundamentals/api/reference/limits/
 last_verified: "2026-11-23"
 detect_headers:
   - cf-ray

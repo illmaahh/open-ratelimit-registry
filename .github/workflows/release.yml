@@ -1,0 +1,26 @@
+name: Release Packages
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  verify-before-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: pip install pyyaml build
+      - run: python3 scripts/build_registry.py && git diff --exit-code packages/ README.md
+      - run: python3 -m unittest discover -s packages/python/tests -v
+      - run: node --test packages/js/test/parser.test.mjs
+      - run: python3 scripts/verify_parity.py
+      - name: Build Python sdist and wheel
+        working-directory: packages/python
+        run: python3 -m build

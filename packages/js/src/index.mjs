@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REGISTRY = JSON.parse(fs.readFileSync(path.join(__dirname, "registry.json"), "utf8")).providers;
 
+export const VERSION = "2.0.0";
+
 function normalizeHeaders(headers) {
   const out = {};
   if (!headers) return out;
@@ -36,6 +38,15 @@ function parseDurationMs(val) {
     else if (unit === "d") total += amt * 86400000;
   }
   return matched ? Math.round(total) : null;
+}
+
+function parseRetryAfterMs(raw, nowMs) {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const num = Number(raw);
+  if (Number.isFinite(num)) return Math.max(0, Math.round(num * 1000));
+  const parsedDate = Date.parse(raw);
+  if (!Number.isNaN(parsedDate)) return Math.max(0, parsedDate - nowMs);
+  return null;
 }
 
 function parseReset(raw, format, nowMs) {
@@ -93,13 +104,43 @@ export function detectProvider(headers) {
   return null;
 }
 
+export function parseHttpHeadersText(rawText) {
+  let status = 200;
+  const headers = {};
+  for (const line of String(rawText).split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      if (Object.keys(headers).length > 0) break;
+      continue;
+    }
+    const statusMatch = trimmed.match(/^HTTP\/\d(?:\.\d)?\s+(\d{3})\b/i);
+    if (statusMatch) {
+      status = Number(statusMatch[1]);
+      continue;
+    }
+    const idx = trimmed.indexOf(":");
+    if (idx > 0) {
+      headers[trimmed.slice(0, idx).trim().toLowerCase()] = trimmed.slice(idx + 1).trim();
+    }
+  }
+  return { status, headers };
+}
+
+export function computeBackoffMs(attempt, options = {}) {
+  const { baseMs = 1000, maxMs = 60000, jitter = "full", rng = Math.random } = options;
+  const cap = Math.min(maxMs, baseMs * 2 ** Math.max(0, attempt));
+  if (jitter === "none") return Math.round(cap);
+  if (jitter === "equal") return Math.round(cap / 2 + rng() * (cap / 2));
+  return Math.round(rng() * cap);
+}
+
 export function parseRateLimit(provider, headers, status = 200, nowMs = Date.now()) {
   const norm = normalizeHeaders(headers);
   const pid = provider ? String(provider).toLowerCase() : detectProvider(norm);
   const spec = pid ? REGISTRY[pid] ?? null : null;
 
   if (!spec) {
-    const retrySec = parseIntSafe(norm["retry-after"]);
+    const retryMs = parseRetryAfterMs(norm["retry-after"], nowMs);
     const isLimited = status === 429;
     return {
       provider: pid,
@@ -108,7 +149,7 @@ export function parseRateLimit(provider, headers, status = 200, nowMs = Date.now
       remaining: null,
       resetAfterMs: null,
       resetAt: null,
-      retryAfterMs: isLimited ? (retrySec !== null ? retrySec * 1000 : 5000) : null,
+      retryAfterMs: isLimited ? (retryMs !== null ? retryMs : 5000) : null,
       strategy: "exponential_backoff_jitter",
       buckets: {},
     };
@@ -187,12 +228,7 @@ export function parseRateLimit(provider, headers, status = 200, nowMs = Date.now
 
   const retryCfg = spec.retry;
   const retryHeader = (retryCfg.retry_after_header ?? "retry-after").toLowerCase();
-  const retryRaw = norm[retryHeader];
-  let retryAfterMs = null;
-  if (retryRaw !== undefined && retryRaw !== "") {
-    const n = Number(retryRaw);
-    if (Number.isFinite(n)) retryAfterMs = Math.max(0, Math.round(n * 1000));
-  }
+  let retryAfterMs = parseRetryAfterMs(norm[retryHeader], nowMs);
 
   let isLimited = retryCfg.status_codes.includes(status);
   if (pid === "github" && status === 403) {
@@ -217,4 +253,76 @@ export function parseRateLimit(provider, headers, status = 200, nowMs = Date.now
     strategy: retryCfg.strategy,
     buckets,
   };
+}
+
+export class RateLimitTracker {
+  constructor(clockMs = () => Date.now()) {
+    this._clockMs = clockMs;
+    this._state = new Map();
+  }
+
+  update(provider, headers, status = 200, key = null) {
+    const now = this._clockMs();
+    const result = parseRateLimit(provider, headers, status, now);
+    const slot = key ?? result.provider ?? "default";
+    this._state.set(slot, { recordedMs: now, result });
+    return result;
+  }
+
+  getDelayMs(key, { minRemaining = 1 } = {}) {
+    const entry = this._state.get(key);
+    if (!entry) return 0;
+    const elapsed = Math.max(0, this._clockMs() - entry.recordedMs);
+    const { result } = entry;
+    if (result.isLimited && result.retryAfterMs !== null) {
+      return Math.max(0, result.retryAfterMs - elapsed);
+    }
+    if (result.remaining !== null && result.remaining < minRemaining && result.resetAfterMs !== null) {
+      return Math.max(0, result.resetAfterMs - elapsed);
+    }
+    return 0;
+  }
+
+  clear(key = null) {
+    if (key === null) this._state.clear();
+    else this._state.delete(key);
+  }
+
+  snapshot() {
+    const out = {};
+    for (const [k, v] of this._state.entries()) out[k] = v.result;
+    return out;
+  }
+}
+
+export async function fetchWithRateLimit(url, init = {}, options = {}) {
+  const {
+    provider = null,
+    maxRetries = 3,
+    maxWaitMs = 60000,
+    fetchImpl = globalThis.fetch,
+    sleepImpl = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    rng = Math.random,
+  } = options;
+
+  let lastResponse = null;
+  let lastRateLimit = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    const response = await fetchImpl(url, init);
+    const rateLimit = parseRateLimit(provider, response.headers, response.status);
+    lastResponse = response;
+    lastRateLimit = rateLimit;
+
+    if (!rateLimit.isLimited || attempt === maxRetries) {
+      return { response, rateLimit };
+    }
+    const waitMs =
+      rateLimit.strategy === "exponential_backoff_jitter" && rateLimit.retryAfterMs !== null
+        ? computeBackoffMs(attempt, { baseMs: rateLimit.retryAfterMs, maxMs: maxWaitMs, rng })
+        : Math.min(rateLimit.retryAfterMs ?? 1000, maxWaitMs);
+    await sleepImpl(waitMs);
+  }
+
+  return { response: lastResponse, rateLimit: lastRateLimit };
 }

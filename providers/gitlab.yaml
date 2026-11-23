@@ -1,7 +1,7 @@
 id: gitlab
 name: GitLab REST API
 category: devtools
-source_url: https://http.dev/ratelimit-limit
+source_url: https://docs.gitlab.com/user/gitlab_com/rate_limits/
 last_verified: "2026-11-23"
 detect_headers: []
 buckets:

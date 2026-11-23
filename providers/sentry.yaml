@@ -1,0 +1,26 @@
+id: sentry
+name: Sentry Ingest & REST API
+category: devtools
+source_url: https://docs.sentry.io/concepts/otlp/forwarding/pipelines/sentry-exporter/
+last_verified: "2026-11-23"
+detect_headers:
+  - x-sentry-rate-limits
+buckets: []
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: honor_retry_after
+  default_backoff_ms: 60000
+  notes: "Sentry returns X-Sentry-Rate-Limits and/or Retry-After; falls back to 60s backoff on bare 429."
+examples:
+  - description: "Sentry 429 with Retry-After"
+    status: 429
+    headers:
+      x-sentry-rate-limits: "60:error:organization"
+      retry-after: "60"
+    expected:
+      is_limited: true
+      limit: null
+      remaining: null
+      retry_after_ms: 60000

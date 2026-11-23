@@ -1,0 +1,33 @@
+id: zendesk
+name: Zendesk Support API
+category: crm
+source_url: https://developer.zendesk.com/api-reference/introduction/rate-limits/
+last_verified: "2026-11-23"
+detect_headers:
+  - x-zendesk-api-version
+buckets:
+  - name: requests
+    unit: requests
+    format: triplet
+    limit_header: x-rate-limit
+    remaining_header: x-rate-limit-remaining
+    reset_format: none
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: honor_retry_after
+  default_backoff_ms: 30000
+  notes: "Zendesk uses X-Rate-Limit and X-Rate-Limit-Remaining on responses, plus Retry-After on 429."
+examples:
+  - description: "Zendesk API response with remaining per-minute quota"
+    status: 200
+    headers:
+      x-zendesk-api-version: "v2"
+      x-rate-limit: "700"
+      x-rate-limit-remaining: "694"
+    expected:
+      is_limited: false
+      limit: 700
+      remaining: 694
+      retry_after_ms: null
