@@ -1,0 +1,27 @@
+id: paypal
+name: PayPal REST API
+category: payments
+source_url: https://developer.paypal.com/api/rate-limiting/
+last_verified: "2026-11-24"
+detect_headers: []
+buckets: []
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: honor_retry_after
+  default_backoff_ms: 1000
+  notes: "PayPal does not publish fixed rate limits. HTTP 429 indicates rate limiting. Honour Retry-After when present; otherwise use backoff and avoid repeated polling."
+examples:
+  - description: "Successful PayPal API response"
+    status: 200
+    headers: {}
+    expected:
+      is_limited: false
+  - description: "PayPal rate limit response with Retry-After"
+    status: 429
+    headers:
+      retry-after: "30"
+    expected:
+      is_limited: true
+      retry_after_ms: 30000
