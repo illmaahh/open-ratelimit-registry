@@ -1,0 +1,24 @@
+id: notion
+name: Notion API
+category: crm
+source_url: https://developers.notion.com/reference/request-limits
+last_verified: "2026-11-23"
+detect_headers: []
+buckets: []
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: honor_retry_after
+  default_backoff_ms: 1000
+  notes: "Notion averages ~3 requests per second per integration and returns HTTP 429 with Retry-After."
+examples:
+  - description: "Notion 429 rate limited response"
+    status: 429
+    headers:
+      retry-after: "2"
+    expected:
+      is_limited: true
+      limit: null
+      remaining: null
+      retry_after_ms: 2000

@@ -1,0 +1,24 @@
+id: spotify
+name: Spotify Web API
+category: standard
+source_url: https://developer.spotify.com/documentation/web-api/concepts/rate-limits
+last_verified: "2026-11-23"
+detect_headers: []
+buckets: []
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: honor_retry_after
+  default_backoff_ms: 3000
+  notes: "Spotify uses a rolling 30-second window and returns 429 with Retry-After in seconds."
+examples:
+  - description: "Spotify 429 with Retry-After seconds"
+    status: 429
+    headers:
+      retry-after: "4"
+    expected:
+      is_limited: true
+      limit: null
+      remaining: null
+      retry_after_ms: 4000

@@ -1,0 +1,33 @@
+id: reddit
+name: Reddit Data API
+category: messaging
+source_url: https://support.reddithelp.com/hc/en-us/articles/16160319875092-Reddit-Data-API-Wiki
+last_verified: "2026-11-23"
+detect_headers:
+  - x-ratelimit-used
+buckets:
+  - name: requests
+    unit: requests
+    format: triplet
+    remaining_header: x-ratelimit-remaining
+    reset_header: x-ratelimit-reset
+    reset_format: delta_seconds
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: wait_until_reset
+  default_backoff_ms: 15000
+  notes: "Reddit emits x-ratelimit-used, x-ratelimit-remaining (often float like 93.0), and x-ratelimit-reset (delta seconds)."
+examples:
+  - description: "Reddit OAuth API response with remaining quota"
+    status: 200
+    headers:
+      x-ratelimit-used: "7"
+      x-ratelimit-remaining: "93.0"
+      x-ratelimit-reset: "361"
+    expected:
+      is_limited: false
+      limit: null
+      remaining: 93
+      retry_after_ms: null

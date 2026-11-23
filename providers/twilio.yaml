@@ -1,0 +1,26 @@
+id: twilio
+name: Twilio REST API
+category: messaging
+source_url: https://www.twilio.com/docs/usage/api-limits
+last_verified: "2026-11-23"
+detect_headers:
+  - twilio-request-id
+buckets: []
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: honor_retry_after
+  default_backoff_ms: 2000
+  notes: "Twilio enforces concurrency and per-endpoint limits and returns HTTP 429 with Retry-After."
+examples:
+  - description: "Twilio 429 concurrency limit"
+    status: 429
+    headers:
+      twilio-request-id: "RQ1234567890abcdef"
+      retry-after: "5"
+    expected:
+      is_limited: true
+      limit: null
+      remaining: null
+      retry_after_ms: 5000

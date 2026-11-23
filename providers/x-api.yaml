@@ -1,0 +1,35 @@
+id: x-api
+name: X (Twitter) API v2
+category: messaging
+source_url: https://opentweet.io/answers/x-api-rate-limit-429
+last_verified: "2026-11-23"
+detect_headers:
+  - x-rate-limit-limit
+  - x-rate-limit-remaining
+buckets:
+  - name: endpoint
+    unit: requests
+    format: triplet
+    limit_header: x-rate-limit-limit
+    remaining_header: x-rate-limit-remaining
+    reset_header: x-rate-limit-reset
+    reset_format: epoch_seconds
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: wait_until_reset
+  default_backoff_ms: 60000
+  notes: "X API v2 uses hyphenated x-rate-limit-* headers with Unix epoch seconds reset."
+examples:
+  - description: "X API v2 15-minute window headers"
+    status: 200
+    headers:
+      x-rate-limit-limit: "100"
+      x-rate-limit-remaining: "87"
+      x-rate-limit-reset: "1795444400"
+    expected:
+      is_limited: false
+      limit: 100
+      remaining: 87
+      retry_after_ms: null
