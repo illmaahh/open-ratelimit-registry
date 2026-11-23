@@ -1,0 +1,26 @@
+id: stripe
+name: Stripe API
+category: payments
+source_url: https://docs.stripe.com/rate-limits
+last_verified: "2026-11-23"
+detect_headers:
+  - stripe-version
+  - request-id
+buckets: []
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: exponential_backoff_jitter
+  default_backoff_ms: 1000
+  notes: "Stripe often returns bare 429 responses without x-ratelimit-* headers; use exponential backoff with jitter and idempotency keys."
+examples:
+  - description: "Stripe 429 without Retry-After falls back to default backoff"
+    status: 429
+    headers:
+      request-id: "req_test123"
+    expected:
+      is_limited: true
+      limit: null
+      remaining: null
+      retry_after_ms: 1000

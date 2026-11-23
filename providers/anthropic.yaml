@@ -1,0 +1,71 @@
+id: anthropic
+name: Anthropic Claude API
+category: ai
+source_url: https://platform.claude.com/docs/en/api/rate-limits
+last_verified: "2026-11-23"
+detect_headers:
+  - anthropic-ratelimit-requests-remaining
+  - anthropic-ratelimit-tokens-remaining
+buckets:
+  - name: requests
+    unit: requests
+    format: triplet
+    limit_header: anthropic-ratelimit-requests-limit
+    remaining_header: anthropic-ratelimit-requests-remaining
+    reset_header: anthropic-ratelimit-requests-reset
+    reset_format: rfc3339
+  - name: tokens
+    unit: tokens
+    format: triplet
+    limit_header: anthropic-ratelimit-tokens-limit
+    remaining_header: anthropic-ratelimit-tokens-remaining
+    reset_header: anthropic-ratelimit-tokens-reset
+    reset_format: rfc3339
+  - name: input_tokens
+    unit: input_tokens
+    format: triplet
+    limit_header: anthropic-ratelimit-input-tokens-limit
+    remaining_header: anthropic-ratelimit-input-tokens-remaining
+    reset_header: anthropic-ratelimit-input-tokens-reset
+    reset_format: rfc3339
+  - name: output_tokens
+    unit: output_tokens
+    format: triplet
+    limit_header: anthropic-ratelimit-output-tokens-limit
+    remaining_header: anthropic-ratelimit-output-tokens-remaining
+    reset_header: anthropic-ratelimit-output-tokens-reset
+    reset_format: rfc3339
+retry:
+  status_codes: [429, 529]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: honor_retry_after
+  default_backoff_ms: 5000
+  notes: "Spend-cap 429 responses omit retry-after; 529 indicates overloaded_error."
+examples:
+  - description: "Healthy Claude API response with RPM and ITPM headers"
+    status: 200
+    headers:
+      anthropic-ratelimit-requests-limit: "1000"
+      anthropic-ratelimit-requests-remaining: "998"
+      anthropic-ratelimit-requests-reset: "2026-11-23T14:00:00Z"
+      anthropic-ratelimit-tokens-limit: "400000"
+      anthropic-ratelimit-tokens-remaining: "395000"
+      anthropic-ratelimit-tokens-reset: "2026-11-23T14:00:00Z"
+    expected:
+      is_limited: false
+      limit: 1000
+      remaining: 998
+      retry_after_ms: null
+  - description: "429 rate limited response with retry-after"
+    status: 429
+    headers:
+      retry-after: "12"
+      anthropic-ratelimit-requests-limit: "1000"
+      anthropic-ratelimit-requests-remaining: "0"
+      anthropic-ratelimit-requests-reset: "2026-11-23T14:00:12Z"
+    expected:
+      is_limited: true
+      limit: 1000
+      remaining: 0
+      retry_after_ms: 12000

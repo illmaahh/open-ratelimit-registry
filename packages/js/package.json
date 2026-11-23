@@ -1,0 +1,14 @@
+{
+  "name": "open-ratelimit-registry",
+  "version": "0.1.0",
+  "description": "Machine-readable registry and zero-dependency parser for HTTP API rate-limit headers",
+  "type": "module",
+  "main": "./src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/parser.test.mjs"
+  },
+  "license": "MIT"
+}

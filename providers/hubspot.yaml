@@ -1,0 +1,39 @@
+id: hubspot
+name: HubSpot API
+category: crm
+source_url: https://developers.hubspot.com/docs/api/usage-details
+last_verified: "2026-11-23"
+detect_headers:
+  - x-hubspot-ratelimit-remaining
+buckets:
+  - name: ten_second_burst
+    unit: requests
+    format: triplet
+    limit_header: x-hubspot-ratelimit-max
+    remaining_header: x-hubspot-ratelimit-remaining
+    reset_format: none
+  - name: daily
+    unit: requests
+    format: triplet
+    limit_header: x-hubspot-ratelimit-daily
+    remaining_header: x-hubspot-ratelimit-daily-remaining
+    reset_format: none
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: exponential_backoff_jitter
+  default_backoff_ms: 10000
+examples:
+  - description: "HubSpot burst and daily quota headers"
+    status: 200
+    headers:
+      x-hubspot-ratelimit-max: "100"
+      x-hubspot-ratelimit-remaining: "94"
+      x-hubspot-ratelimit-daily: "250000"
+      x-hubspot-ratelimit-daily-remaining: "249980"
+    expected:
+      is_limited: false
+      limit: 100
+      remaining: 94
+      retry_after_ms: null

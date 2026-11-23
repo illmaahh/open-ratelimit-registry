@@ -1,0 +1,48 @@
+id: github
+name: GitHub REST & GraphQL API
+category: devtools
+source_url: https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
+last_verified: "2026-11-23"
+detect_headers:
+  - x-github-request-id
+  - x-ratelimit-resource
+buckets:
+  - name: core
+    unit: requests
+    format: triplet
+    limit_header: x-ratelimit-limit
+    remaining_header: x-ratelimit-remaining
+    reset_header: x-ratelimit-reset
+    reset_format: epoch_seconds
+retry:
+  status_codes: [403, 429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: honor_retry_after
+  default_backoff_ms: 60000
+  notes: "403 is a rate limit only when x-ratelimit-remaining is 0 or retry-after is present; secondary limits use retry-after."
+examples:
+  - description: "Authenticated GitHub REST API call"
+    status: 200
+    headers:
+      x-github-request-id: "D4F2:1A2B:3C4D:5E6F:6741A2B3"
+      x-ratelimit-limit: "5000"
+      x-ratelimit-remaining: "4992"
+      x-ratelimit-reset: "1795443600"
+    expected:
+      is_limited: false
+      limit: 5000
+      remaining: 4992
+      retry_after_ms: null
+  - description: "GitHub primary rate limit exhausted on 403"
+    status: 403
+    headers:
+      x-ratelimit-limit: "5000"
+      x-ratelimit-remaining: "0"
+      x-ratelimit-reset: "1795443600"
+      retry-after: "45"
+    expected:
+      is_limited: true
+      limit: 5000
+      remaining: 0
+      retry_after_ms: 45000

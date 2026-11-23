@@ -1,0 +1,460 @@
+{
+  "version": "0.1.0",
+  "providers": {
+    "anthropic": {
+      "id": "anthropic",
+      "name": "Anthropic Claude API",
+      "category": "ai",
+      "source_url": "https://platform.claude.com/docs/en/api/rate-limits",
+      "last_verified": "2026-11-23",
+      "detect_headers": [
+        "anthropic-ratelimit-requests-remaining",
+        "anthropic-ratelimit-tokens-remaining"
+      ],
+      "buckets": [
+        {
+          "name": "requests",
+          "unit": "requests",
+          "format": "triplet",
+          "limit_header": "anthropic-ratelimit-requests-limit",
+          "remaining_header": "anthropic-ratelimit-requests-remaining",
+          "reset_header": "anthropic-ratelimit-requests-reset",
+          "reset_format": "rfc3339"
+        },
+        {
+          "name": "tokens",
+          "unit": "tokens",
+          "format": "triplet",
+          "limit_header": "anthropic-ratelimit-tokens-limit",
+          "remaining_header": "anthropic-ratelimit-tokens-remaining",
+          "reset_header": "anthropic-ratelimit-tokens-reset",
+          "reset_format": "rfc3339"
+        },
+        {
+          "name": "input_tokens",
+          "unit": "input_tokens",
+          "format": "triplet",
+          "limit_header": "anthropic-ratelimit-input-tokens-limit",
+          "remaining_header": "anthropic-ratelimit-input-tokens-remaining",
+          "reset_header": "anthropic-ratelimit-input-tokens-reset",
+          "reset_format": "rfc3339"
+        },
+        {
+          "name": "output_tokens",
+          "unit": "output_tokens",
+          "format": "triplet",
+          "limit_header": "anthropic-ratelimit-output-tokens-limit",
+          "remaining_header": "anthropic-ratelimit-output-tokens-remaining",
+          "reset_header": "anthropic-ratelimit-output-tokens-reset",
+          "reset_format": "rfc3339"
+        }
+      ],
+      "retry": {
+        "status_codes": [
+          429,
+          529
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "honor_retry_after",
+        "default_backoff_ms": 5000,
+        "notes": "Spend-cap 429 responses omit retry-after; 529 indicates overloaded_error."
+      },
+      "examples": [
+        {
+          "description": "Healthy Claude API response with RPM and ITPM headers",
+          "status": 200,
+          "headers": {
+            "anthropic-ratelimit-requests-limit": "1000",
+            "anthropic-ratelimit-requests-remaining": "998",
+            "anthropic-ratelimit-requests-reset": "2026-11-23T14:00:00Z",
+            "anthropic-ratelimit-tokens-limit": "400000",
+            "anthropic-ratelimit-tokens-remaining": "395000",
+            "anthropic-ratelimit-tokens-reset": "2026-11-23T14:00:00Z"
+          },
+          "expected": {
+            "is_limited": false,
+            "limit": 1000,
+            "remaining": 998,
+            "retry_after_ms": null
+          }
+        },
+        {
+          "description": "429 rate limited response with retry-after",
+          "status": 429,
+          "headers": {
+            "retry-after": "12",
+            "anthropic-ratelimit-requests-limit": "1000",
+            "anthropic-ratelimit-requests-remaining": "0",
+            "anthropic-ratelimit-requests-reset": "2026-11-23T14:00:12Z"
+          },
+          "expected": {
+            "is_limited": true,
+            "limit": 1000,
+            "remaining": 0,
+            "retry_after_ms": 12000
+          }
+        }
+      ]
+    },
+    "github": {
+      "id": "github",
+      "name": "GitHub REST & GraphQL API",
+      "category": "devtools",
+      "source_url": "https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api",
+      "last_verified": "2026-11-23",
+      "detect_headers": [
+        "x-github-request-id",
+        "x-ratelimit-resource"
+      ],
+      "buckets": [
+        {
+          "name": "core",
+          "unit": "requests",
+          "format": "triplet",
+          "limit_header": "x-ratelimit-limit",
+          "remaining_header": "x-ratelimit-remaining",
+          "reset_header": "x-ratelimit-reset",
+          "reset_format": "epoch_seconds"
+        }
+      ],
+      "retry": {
+        "status_codes": [
+          403,
+          429
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "honor_retry_after",
+        "default_backoff_ms": 60000,
+        "notes": "403 is a rate limit only when x-ratelimit-remaining is 0 or retry-after is present; secondary limits use retry-after."
+      },
+      "examples": [
+        {
+          "description": "Authenticated GitHub REST API call",
+          "status": 200,
+          "headers": {
+            "x-github-request-id": "D4F2:1A2B:3C4D:5E6F:6741A2B3",
+            "x-ratelimit-limit": "5000",
+            "x-ratelimit-remaining": "4992",
+            "x-ratelimit-reset": "1795443600"
+          },
+          "expected": {
+            "is_limited": false,
+            "limit": 5000,
+            "remaining": 4992,
+            "retry_after_ms": null
+          }
+        },
+        {
+          "description": "GitHub primary rate limit exhausted on 403",
+          "status": 403,
+          "headers": {
+            "x-ratelimit-limit": "5000",
+            "x-ratelimit-remaining": "0",
+            "x-ratelimit-reset": "1795443600",
+            "retry-after": "45"
+          },
+          "expected": {
+            "is_limited": true,
+            "limit": 5000,
+            "remaining": 0,
+            "retry_after_ms": 45000
+          }
+        }
+      ]
+    },
+    "hubspot": {
+      "id": "hubspot",
+      "name": "HubSpot API",
+      "category": "crm",
+      "source_url": "https://developers.hubspot.com/docs/api/usage-details",
+      "last_verified": "2026-11-23",
+      "detect_headers": [
+        "x-hubspot-ratelimit-remaining"
+      ],
+      "buckets": [
+        {
+          "name": "ten_second_burst",
+          "unit": "requests",
+          "format": "triplet",
+          "limit_header": "x-hubspot-ratelimit-max",
+          "remaining_header": "x-hubspot-ratelimit-remaining",
+          "reset_format": "none"
+        },
+        {
+          "name": "daily",
+          "unit": "requests",
+          "format": "triplet",
+          "limit_header": "x-hubspot-ratelimit-daily",
+          "remaining_header": "x-hubspot-ratelimit-daily-remaining",
+          "reset_format": "none"
+        }
+      ],
+      "retry": {
+        "status_codes": [
+          429
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "exponential_backoff_jitter",
+        "default_backoff_ms": 10000
+      },
+      "examples": [
+        {
+          "description": "HubSpot burst and daily quota headers",
+          "status": 200,
+          "headers": {
+            "x-hubspot-ratelimit-max": "100",
+            "x-hubspot-ratelimit-remaining": "94",
+            "x-hubspot-ratelimit-daily": "250000",
+            "x-hubspot-ratelimit-daily-remaining": "249980"
+          },
+          "expected": {
+            "is_limited": false,
+            "limit": 100,
+            "remaining": 94,
+            "retry_after_ms": null
+          }
+        }
+      ]
+    },
+    "ietf-ratelimit": {
+      "id": "ietf-ratelimit",
+      "name": "IETF RateLimit Structured Fields (Draft)",
+      "category": "standard",
+      "source_url": "https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/",
+      "last_verified": "2026-11-23",
+      "detect_headers": [
+        "ratelimit",
+        "ratelimit-policy"
+      ],
+      "buckets": [
+        {
+          "name": "default",
+          "unit": "requests",
+          "format": "ietf_structured",
+          "structured_header": "ratelimit",
+          "policy_header": "ratelimit-policy",
+          "reset_format": "delta_seconds"
+        }
+      ],
+      "retry": {
+        "status_codes": [
+          429
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "wait_until_reset",
+        "default_backoff_ms": 5000,
+        "notes": "Supports HTTP Structured Fields RateLimit: \"policy\";r=50;t=10 and RateLimit-Policy: \"policy\";q=100;w=60."
+      },
+      "examples": [
+        {
+          "description": "IETF RateLimit and RateLimit-Policy headers",
+          "status": 200,
+          "headers": {
+            "ratelimit-policy": "\"default\";q=100;w=60",
+            "ratelimit": "\"default\";r=42;t=18"
+          },
+          "expected": {
+            "is_limited": false,
+            "limit": 100,
+            "remaining": 42,
+            "retry_after_ms": null
+          }
+        }
+      ]
+    },
+    "openai": {
+      "id": "openai",
+      "name": "OpenAI API",
+      "category": "ai",
+      "source_url": "https://platform.openai.com/docs/guides/rate-limits",
+      "last_verified": "2026-11-23",
+      "detect_headers": [
+        "x-ratelimit-remaining-requests",
+        "x-ratelimit-remaining-tokens"
+      ],
+      "buckets": [
+        {
+          "name": "requests",
+          "unit": "requests",
+          "format": "triplet",
+          "limit_header": "x-ratelimit-limit-requests",
+          "remaining_header": "x-ratelimit-remaining-requests",
+          "reset_header": "x-ratelimit-reset-requests",
+          "reset_format": "duration_string"
+        },
+        {
+          "name": "tokens",
+          "unit": "tokens",
+          "format": "triplet",
+          "limit_header": "x-ratelimit-limit-tokens",
+          "remaining_header": "x-ratelimit-remaining-tokens",
+          "reset_header": "x-ratelimit-reset-tokens",
+          "reset_format": "duration_string"
+        }
+      ],
+      "retry": {
+        "status_codes": [
+          429
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "wait_until_reset",
+        "default_backoff_ms": 2000,
+        "notes": "Reset headers use duration strings such as 1s, 6m0s, or 250ms."
+      },
+      "examples": [
+        {
+          "description": "Standard OpenAI response with duration-string reset",
+          "status": 200,
+          "headers": {
+            "x-ratelimit-limit-requests": "500",
+            "x-ratelimit-remaining-requests": "499",
+            "x-ratelimit-reset-requests": "120ms",
+            "x-ratelimit-limit-tokens": "30000",
+            "x-ratelimit-remaining-tokens": "29500",
+            "x-ratelimit-reset-tokens": "1s"
+          },
+          "expected": {
+            "is_limited": false,
+            "limit": 500,
+            "remaining": 499,
+            "retry_after_ms": null
+          }
+        }
+      ]
+    },
+    "shopify": {
+      "id": "shopify",
+      "name": "Shopify REST Admin API",
+      "category": "ecommerce",
+      "source_url": "https://shopify.dev/docs/api/admin-rest/usage/rate-limits",
+      "last_verified": "2026-11-23",
+      "detect_headers": [
+        "x-shopify-shop-api-call-limit"
+      ],
+      "buckets": [
+        {
+          "name": "leaky_bucket",
+          "unit": "requests",
+          "format": "ratio",
+          "ratio_header": "x-shopify-shop-api-call-limit",
+          "reset_format": "none"
+        }
+      ],
+      "retry": {
+        "status_codes": [
+          429
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "honor_retry_after",
+        "default_backoff_ms": 2000,
+        "notes": "Header uses used/limit format (e.g., 10/40). Retry-After can be a float like 2.0."
+      },
+      "examples": [
+        {
+          "description": "Shopify call limit ratio 10/40",
+          "status": 200,
+          "headers": {
+            "x-shopify-shop-api-call-limit": "10/40"
+          },
+          "expected": {
+            "is_limited": false,
+            "limit": 40,
+            "remaining": 30,
+            "retry_after_ms": null
+          }
+        },
+        {
+          "description": "Shopify 429 throttled response",
+          "status": 429,
+          "headers": {
+            "x-shopify-shop-api-call-limit": "40/40",
+            "retry-after": "2.0"
+          },
+          "expected": {
+            "is_limited": true,
+            "limit": 40,
+            "remaining": 0,
+            "retry_after_ms": 2000
+          }
+        }
+      ]
+    },
+    "slack": {
+      "id": "slack",
+      "name": "Slack Web API",
+      "category": "messaging",
+      "source_url": "https://docs.slack.dev/apis/web-api/rate-limits",
+      "last_verified": "2026-11-23",
+      "detect_headers": [],
+      "buckets": [],
+      "retry": {
+        "status_codes": [
+          429
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "honor_retry_after",
+        "default_backoff_ms": 30000,
+        "notes": "Slack enforces per-method workspace tiers and signals limits via 429 + Retry-After."
+      },
+      "examples": [
+        {
+          "description": "Slack 429 rate limited response",
+          "status": 429,
+          "headers": {
+            "retry-after": "30"
+          },
+          "expected": {
+            "is_limited": true,
+            "limit": null,
+            "remaining": null,
+            "retry_after_ms": 30000
+          }
+        }
+      ]
+    },
+    "stripe": {
+      "id": "stripe",
+      "name": "Stripe API",
+      "category": "payments",
+      "source_url": "https://docs.stripe.com/rate-limits",
+      "last_verified": "2026-11-23",
+      "detect_headers": [
+        "stripe-version",
+        "request-id"
+      ],
+      "buckets": [],
+      "retry": {
+        "status_codes": [
+          429
+        ],
+        "retry_after_header": "retry-after",
+        "retry_after_format": "seconds",
+        "strategy": "exponential_backoff_jitter",
+        "default_backoff_ms": 1000,
+        "notes": "Stripe often returns bare 429 responses without x-ratelimit-* headers; use exponential backoff with jitter and idempotency keys."
+      },
+      "examples": [
+        {
+          "description": "Stripe 429 without Retry-After falls back to default backoff",
+          "status": 429,
+          "headers": {
+            "request-id": "req_test123"
+          },
+          "expected": {
+            "is_limited": true,
+            "limit": null,
+            "remaining": null,
+            "retry_after_ms": 1000
+          }
+        }
+      ]
+    }
+  }
+}

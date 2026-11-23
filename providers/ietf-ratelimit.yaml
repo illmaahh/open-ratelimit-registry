@@ -1,0 +1,33 @@
+id: ietf-ratelimit
+name: IETF RateLimit Structured Fields (Draft)
+category: standard
+source_url: https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/
+last_verified: "2026-11-23"
+detect_headers:
+  - ratelimit
+  - ratelimit-policy
+buckets:
+  - name: default
+    unit: requests
+    format: ietf_structured
+    structured_header: ratelimit
+    policy_header: ratelimit-policy
+    reset_format: delta_seconds
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: wait_until_reset
+  default_backoff_ms: 5000
+  notes: "Supports HTTP Structured Fields RateLimit: \"policy\";r=50;t=10 and RateLimit-Policy: \"policy\";q=100;w=60."
+examples:
+  - description: "IETF RateLimit and RateLimit-Policy headers"
+    status: 200
+    headers:
+      ratelimit-policy: "\"default\";q=100;w=60"
+      ratelimit: "\"default\";r=42;t=18"
+    expected:
+      is_limited: false
+      limit: 100
+      remaining: 42
+      retry_after_ms: null

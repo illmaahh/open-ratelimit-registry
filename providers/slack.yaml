@@ -1,0 +1,24 @@
+id: slack
+name: Slack Web API
+category: messaging
+source_url: https://docs.slack.dev/apis/web-api/rate-limits
+last_verified: "2026-11-23"
+detect_headers: []
+buckets: []
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: honor_retry_after
+  default_backoff_ms: 30000
+  notes: "Slack enforces per-method workspace tiers and signals limits via 429 + Retry-After."
+examples:
+  - description: "Slack 429 rate limited response"
+    status: 429
+    headers:
+      retry-after: "30"
+    expected:
+      is_limited: true
+      limit: null
+      remaining: null
+      retry_after_ms: 30000

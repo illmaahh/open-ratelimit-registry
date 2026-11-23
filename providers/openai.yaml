@@ -1,0 +1,45 @@
+id: openai
+name: OpenAI API
+category: ai
+source_url: https://platform.openai.com/docs/guides/rate-limits
+last_verified: "2026-11-23"
+detect_headers:
+  - x-ratelimit-remaining-requests
+  - x-ratelimit-remaining-tokens
+buckets:
+  - name: requests
+    unit: requests
+    format: triplet
+    limit_header: x-ratelimit-limit-requests
+    remaining_header: x-ratelimit-remaining-requests
+    reset_header: x-ratelimit-reset-requests
+    reset_format: duration_string
+  - name: tokens
+    unit: tokens
+    format: triplet
+    limit_header: x-ratelimit-limit-tokens
+    remaining_header: x-ratelimit-remaining-tokens
+    reset_header: x-ratelimit-reset-tokens
+    reset_format: duration_string
+retry:
+  status_codes: [429]
+  retry_after_header: retry-after
+  retry_after_format: seconds
+  strategy: wait_until_reset
+  default_backoff_ms: 2000
+  notes: "Reset headers use duration strings such as 1s, 6m0s, or 250ms."
+examples:
+  - description: "Standard OpenAI response with duration-string reset"
+    status: 200
+    headers:
+      x-ratelimit-limit-requests: "500"
+      x-ratelimit-remaining-requests: "499"
+      x-ratelimit-reset-requests: "120ms"
+      x-ratelimit-limit-tokens: "30000"
+      x-ratelimit-remaining-tokens: "29500"
+      x-ratelimit-reset-tokens: "1s"
+    expected:
+      is_limited: false
+      limit: 500
+      remaining: 499
+      retry_after_ms: null
